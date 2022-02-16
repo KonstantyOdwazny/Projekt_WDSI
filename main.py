@@ -76,35 +76,42 @@ data_train = get_train_df(ann_path, img_path)
 data_test = get_train_df(test_ann_path,test_img_path)
 
 
-def display_dataset_stats(data):
-    class_to_num = {}
-    for idx, sample in enumerate(data):
-        class_id = sample['label']
-        if class_id not in class_to_num:
-            class_to_num[class_id] = 0
-        class_to_num[class_id] += 1
 
-    class_to_num = dict(sorted(class_to_num.items(), key=lambda item: item[0]))
-    # print('number of samples for each class:')
-    print(class_to_num)
-def balance_dataset(data, ratio):
-    sampled_data = random.sample(data, int(ratio * len(data)))
+def learn_bovw(data):
 
-    return sampled_data
+    dict_size = 128
+    bow = cv2.BOWKMeansTrainer(dict_size)
+
+    sift = cv2.SIFT_create()
+    for sample in data:
+        kpts = sift.detect(sample['image'], None)
+        kpts, desc = sift.compute(sample['image'], kpts)
+
+        if desc is not None:
+            bow.add(desc)
+
+    vocabulary = bow.cluster()
+
+    np.save('voc.npy', vocabulary)
+def extract_features(data):
+
+    sift = cv2.SIFT_create()
+    flann = cv2.FlannBasedMatcher_create()
+    bow = cv2.BOWImgDescriptorExtractor(sift, flann)
+    vocabulary = np.load('voc.npy')
+    bow.setVocabulary(vocabulary)
+    for sample in data:
+        # compute descriptor and add it as "desc" entry in sample
+        # TODO PUT YOUR CODE HERE
+        kpts = sift.detect(sample['image'], None)
+        desc = bow.compute(sample['image'], kpts)
+        sample['desc'] = desc
+        # ------------------
+
+    return data
 
 # class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
-#data_train = load_data('./', 'Train.csv')
-print('train dataset before balancing:')
-display_dataset_stats(data_train)
-data_train = balance_dataset(data_train, 1.0)
-print('train dataset after balancing:')
-display_dataset_stats(data_train)
-
-#data_test = load_data('./', 'Test.csv')
-print('test dataset before balancing:')
-display_dataset_stats(data_test)
-data_test = balance_dataset(data_test, 1.0)
-print('test dataset after balancing:')
-display_dataset_stats(data_test)
+# print('learning BoVW')
+# learn_bovw(data_train)
 
 
