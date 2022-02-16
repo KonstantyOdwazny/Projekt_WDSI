@@ -15,14 +15,14 @@ from detecto.utils import read_image
 from detecto.core import Dataset
 from detecto.visualize import show_labeled_image
 from detecto.core import DataLoader, Model
+from detecto import core, utils
 
 
 def get_file_list(root, file_type):
     return [os.path.join(directory_path, f) for directory_path, directory_name,
             files in os.walk(root) for f in files if f.endswith(file_type)]
-def get_train_df(ann_path, img_path):
+def test(ann_path, img_path):
     ann_path_list = get_file_list(ann_path, '.xml')
-    ann_list = []
     data = []
     for a_path in ann_path_list:
         root = ET.parse(a_path).getroot()
@@ -54,17 +54,14 @@ def get_train_df(ann_path, img_path):
             # print(ymax.text)
             ymax_list.append(ymax.text)
 
-        # class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
-        # #print(cl_list, i)
-        # class_id = 0
-        # for c in cl_list:
-        #     class_id = class_dict[c]
-        #     image = cv2.imread(os.path.join('./', path_f))
-        #     data.append({'image': image, 'label': class_id})
+        print("Filename:" , filename)
+        print("n:", i)
+        for x in range(len(ymax_list)):
+            print("xmin:",xmin_list[x],"xmax:",xmax_list[x],"ymin:",ymin_list[x],"ymax:",ymax_list[x])
 
 
 
-    return data
+
 
 
 
@@ -88,8 +85,15 @@ dataset = Dataset(ann_path,img_path)
 # show_labeled_image(image, targets['boxes'], targets['labels'])
 
 labels = ['speedlimit', 'stop', 'crosswalk' , 'trafficlight']
-model = Model(labels)
-model.fit(dataset)
+"""
+Uzywane tylko raz podczas trenowania
+"""
+# model = Model(labels)
+# model.fit(dataset)
+# model.save('sings_rmodel.pth')
+
+model = core.Model.load('sings_rmodel.pth',labels)
+test(test_ann_path,test_img_path)
 
 
 
