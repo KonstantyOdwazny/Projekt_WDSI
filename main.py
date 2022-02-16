@@ -8,6 +8,7 @@ import random
 import os
 import cv2
 import csv
+import bs4
 
 
 def get_file_list(root, file_type):
@@ -16,53 +17,50 @@ def get_file_list(root, file_type):
 def get_train_df(ann_path, img_path):
     ann_path_list = get_file_list(ann_path, '.xml')
     ann_list = []
-    with open('Train.csv', 'w',newline='') as csvfile:
-        csvwriter = csv.writer(csvfile, delimiter=',')
-        csvwriter.writerow(['Width', 'Height', 'Roi.X1' , 'Roi.Y1' , 'Roi.X2' , 'Roi.Y2' , 'ClassId' , 'Path'])
-        for a_path in ann_path_list:
-            root = ET.parse(a_path).getroot()
-            ann = {}
-            ann['filename'] = Path(str(img_path) + '/' + root.find("./filename").text)
-            ann['width'] = root.find("./size/width").text
-            ann['height'] = root.find("./size/height").text
-            ann['class'] = root.find("./object/name").text
-            ann['xmin'] = int(root.find("./object/bndbox/xmin").text)
-            ann['ymin'] = int(root.find("./object/bndbox/ymin").text)
-            ann['xmax'] = int(root.find("./object/bndbox/xmax").text)
-            ann['ymax'] = int(root.find("./object/bndbox/ymax").text)
-            ann_list.append(ann)
-            class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
-            Id = class_dict[ann['class']]
-            # print(Id)
-            csvwriter.writerow([ann['width'],ann['height'],ann['xmin'],ann['ymin'],ann['xmax'],ann['ymax'],Id,ann['filename']])
-            # print(ann['filename'], ann['class'])
+    data = []
+    for a_path in ann_path_list:
+        root = ET.parse(a_path).getroot()
 
-    return pd.DataFrame(ann_list)
-def get_test_df(ann_path, img_path):
-    ann_path_list = get_file_list(ann_path, '.xml')
-    ann_list = []
-    with open('Test.csv', 'w',newline='') as csvfile:
-        csvwriter = csv.writer(csvfile, delimiter=',')
-        csvwriter.writerow(['Width', 'Height', 'Roi.X1' , 'Roi.Y1' , 'Roi.X2' , 'Roi.Y2' , 'ClassId' , 'Path'])
-        for a_path in ann_path_list:
-            root = ET.parse(a_path).getroot()
-            ann = {}
-            ann['filename'] = Path(str(img_path) + '/' + root.find("./filename").text)
-            ann['width'] = root.find("./size/width").text
-            ann['height'] = root.find("./size/height").text
-            ann['class'] = root.find("./object/name").text
-            ann['xmin'] = int(root.find("./object/bndbox/xmin").text)
-            ann['ymin'] = int(root.find("./object/bndbox/ymin").text)
-            ann['xmax'] = int(root.find("./object/bndbox/xmax").text)
-            ann['ymax'] = int(root.find("./object/bndbox/ymax").text)
-            ann_list.append(ann)
-            class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
-            Id = class_dict[ann['class']]
-            # print(Id)
-            csvwriter.writerow([ann['width'],ann['height'],ann['xmin'],ann['ymin'],ann['xmax'],ann['ymax'],Id,ann['filename']])
-            # print(ann['filename'], ann['class'])
+        path_f = Path(str(img_path) + '/' + root.find("./filename").text)
+        width = root.find("./size/width").text
+        height = root.find("./size/height").text
+        filename = root.find("./filename").text
 
-    return pd.DataFrame(ann_list)
+        i = 0
+        cl_list = []
+        for cl in root.findall("./object/name"):
+            # print(cl.text)
+            cl_list.append(cl.text)
+            i = i + 1
+        xmin_list = []
+        for xmin in root.findall("./object/bndbox/xmin"):
+            # print(xmin.text)
+            xmin_list.append(xmin.text)
+        ymin_list = []
+        for ymin in root.findall("./object/bndbox/ymin"):
+            # print(ymin.text)
+            ymin_list.append(ymin.text)
+        xmax_list = []
+        for xmax in root.findall("./object/bndbox/xmax"):
+            # print(xmax.text)
+            xmax_list.append(xmax.text)
+        ymax_list = []
+        for ymax in root.findall("./object/bndbox/ymax"):
+            # print(ymax.text)
+            ymax_list.append(ymax.text)
+
+        class_dict = {'speedlimit': 0, 'stop': 0, 'crosswalk': 1, 'trafficlight': 0}
+        #print(cl_list, i)
+        class_id = 0
+        for c in cl_list:
+            id = class_dict[c]
+            if id != 0:
+                class_id = id
+                break
+        image = cv2.imread(os.path.join('./', path_f))
+        data.append({'image': image, 'label': class_id})
+
+    return data
 
 
 base_path = 'train/'
@@ -74,8 +72,39 @@ test_img_path = test_base_path + 'images/'
 """
 Uzywane tylko podczas tworzenia plikow csv :
 """
-# df_train = get_train_df(ann_path, img_path)
-# df_test = get_test_df(test_ann_path,test_img_path)
+data_train = get_train_df(ann_path, img_path)
+data_test = get_train_df(test_ann_path,test_img_path)
 
+
+def display_dataset_stats(data):
+    class_to_num = {}
+    for idx, sample in enumerate(data):
+        class_id = sample['label']
+        if class_id not in class_to_num:
+            class_to_num[class_id] = 0
+        class_to_num[class_id] += 1
+
+    class_to_num = dict(sorted(class_to_num.items(), key=lambda item: item[0]))
+    # print('number of samples for each class:')
+    print(class_to_num)
+def balance_dataset(data, ratio):
+    sampled_data = random.sample(data, int(ratio * len(data)))
+
+    return sampled_data
+
+# class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
+#data_train = load_data('./', 'Train.csv')
+print('train dataset before balancing:')
+display_dataset_stats(data_train)
+data_train = balance_dataset(data_train, 1.0)
+print('train dataset after balancing:')
+display_dataset_stats(data_train)
+
+#data_test = load_data('./', 'Test.csv')
+print('test dataset before balancing:')
+display_dataset_stats(data_test)
+data_test = balance_dataset(data_test, 1.0)
+print('test dataset after balancing:')
+display_dataset_stats(data_test)
 
 
