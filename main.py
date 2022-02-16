@@ -9,6 +9,12 @@ import os
 import cv2
 import csv
 import bs4
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix
+from detecto.utils import read_image
+from detecto.core import Dataset
+from detecto.visualize import show_labeled_image
+from detecto.core import DataLoader, Model
 
 
 def get_file_list(root, file_type):
@@ -25,7 +31,6 @@ def get_train_df(ann_path, img_path):
         width = root.find("./size/width").text
         height = root.find("./size/height").text
         filename = root.find("./filename").text
-
         i = 0
         cl_list = []
         for cl in root.findall("./object/name"):
@@ -49,20 +54,21 @@ def get_train_df(ann_path, img_path):
             # print(ymax.text)
             ymax_list.append(ymax.text)
 
-        class_dict = {'speedlimit': 0, 'stop': 0, 'crosswalk': 1, 'trafficlight': 0}
-        #print(cl_list, i)
-        class_id = 0
-        for c in cl_list:
-            id = class_dict[c]
-            if id != 0:
-                class_id = id
-                break
-        image = cv2.imread(os.path.join('./', path_f))
-        data.append({'image': image, 'label': class_id})
+        # class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
+        # #print(cl_list, i)
+        # class_id = 0
+        # for c in cl_list:
+        #     class_id = class_dict[c]
+        #     image = cv2.imread(os.path.join('./', path_f))
+        #     data.append({'image': image, 'label': class_id})
+
+
 
     return data
 
 
+
+# class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
 base_path = 'train/'
 ann_path = base_path + 'annotations/'
 img_path = base_path + 'images/'
@@ -72,46 +78,23 @@ test_img_path = test_base_path + 'images/'
 """
 Uzywane tylko podczas tworzenia plikow csv :
 """
-data_train = get_train_df(ann_path, img_path)
-data_test = get_train_df(test_ann_path,test_img_path)
+# data_train = get_train_df(ann_path, img_path)
+# data_test = get_train_df(test_ann_path,test_img_path)
+
+dataset = Dataset(ann_path,img_path)
+
+# Testowanie działania biblioteki
+# image, targets = dataset[10]
+# show_labeled_image(image, targets['boxes'], targets['labels'])
+
+labels = ['speedlimit', 'stop', 'crosswalk' , 'trafficlight']
+model = Model(labels)
+model.fit(dataset)
 
 
 
-def learn_bovw(data):
 
-    dict_size = 128
-    bow = cv2.BOWKMeansTrainer(dict_size)
 
-    sift = cv2.SIFT_create()
-    for sample in data:
-        kpts = sift.detect(sample['image'], None)
-        kpts, desc = sift.compute(sample['image'], kpts)
 
-        if desc is not None:
-            bow.add(desc)
-
-    vocabulary = bow.cluster()
-
-    np.save('voc.npy', vocabulary)
-def extract_features(data):
-
-    sift = cv2.SIFT_create()
-    flann = cv2.FlannBasedMatcher_create()
-    bow = cv2.BOWImgDescriptorExtractor(sift, flann)
-    vocabulary = np.load('voc.npy')
-    bow.setVocabulary(vocabulary)
-    for sample in data:
-        # compute descriptor and add it as "desc" entry in sample
-        # TODO PUT YOUR CODE HERE
-        kpts = sift.detect(sample['image'], None)
-        desc = bow.compute(sample['image'], kpts)
-        sample['desc'] = desc
-        # ------------------
-
-    return data
-
-# class_dict = {'speedlimit': 0, 'stop': 1, 'crosswalk': 2, 'trafficlight': 3}
-# print('learning BoVW')
-# learn_bovw(data_train)
 
 
