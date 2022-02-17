@@ -49,12 +49,12 @@ def train_model(labels,dataset):
     model.save('sings_rmodel.pth')
     return
 
-def display(paths, boxes, labels):
+def display(dataset):
     """
     Wyswietla pojedynczy obraz wraz z ramka oraz predykowana etykieta
     """
-    image = read_image(paths)
-    show_labeled_image(image, boxes, labels)
+    image, targets = dataset
+    show_labeled_image(image, targets['boxes'], targets['labels'])
 def get_file_list(root, file_type):
     """
     Funkcja pobiera typ pliku w tym przypadku xml oraz odsylacz do niego root i zwraca xml w formie listy
@@ -91,7 +91,7 @@ def draw_grid(images, row, col, h, w):
     if len(images) <= 24:
         n = len(images)
     else:
-        n = 24
+        n = 16
     for cur_image in range(n):
         if c < col and r < row:
             img = cv2.imread(images[cur_image], cv2.IMREAD_UNCHANGED)
@@ -100,8 +100,8 @@ def draw_grid(images, row, col, h, w):
             r += 1
         else:
             if r >= row:
-                r = 0
                 c += 1
+                r = 0
 
     return image_all
 def display_images(corr, incorr, za_male):
@@ -123,7 +123,7 @@ def display_images(corr, incorr, za_male):
 
     return
 
-def test_and_evaluate(ilosc, path_f, filename, real_labels, model):
+def test_and_evaluate(ilosc, path_f, filename, real_labels, model, dataset):
     """
     :param ilosc: stała wartość int oznacza ilość obrazów
     :param path_f: wektor ścieżek do obrazów
@@ -149,6 +149,9 @@ def test_and_evaluate(ilosc, path_f, filename, real_labels, model):
         xmax_list = []
         ymax_list = []
         i = 0
+        indeks = []
+        ind = []
+        licz = 0
         # #Wydobywanie wielkosci danego obrazu nie korzystajac z plikow xml
         size_image = PIL.Image.open(str(path_f[id]))
         width, height = size_image.size
@@ -163,8 +166,9 @@ def test_and_evaluate(ilosc, path_f, filename, real_labels, model):
         # print("scores", wyniki)
         for j in range(len(klasy)):
             if klasy is not None and ramki is not None and wyniki is not None:
-                if wyniki[j] >= 0.6:
+                if wyniki[j] >= 0.8:
                     predict_labels.append(klasy[j])
+                    indeks.append(i)
                     scores.append(wyniki[j])
                     boxes.append(ramki[j])
                     i = i + 1
@@ -176,24 +180,32 @@ def test_and_evaluate(ilosc, path_f, filename, real_labels, model):
         image_stats(filename[id], i, xmin_list, xmax_list, ymin_list, ymax_list)
 
         pre_labels = []
+        box = []
         for s in range(len(scores)):
             dlugosc_znaku = xmax_list[s] - xmin_list[s]
             wysokosc_znaku = ymax_list[s] - ymin_list[s]
             if dlugosc_znaku / width >= 0.1 and wysokosc_znaku / height >= 0.1:
                 pre_labels.append(predict_labels[s])
+                box.append(boxes[s])
+                ind.append(licz)
+                licz = licz + 1
 
         if 'crosswalk' in pre_labels and 'crosswalk' in real_labels[id]:
             TP += 1
-            # display(str(path_f[id]), boxes[s], predict_labels[s]) # wyswietlanie poprawnych zdjec
+            print("Poprawnie wykryte")
+            display(dataset[id]) # wyswietlanie poprawnych zdjec
             corr.append(str(path_f[id]))
         elif 'crosswalk' in predict_labels and 'crosswalk' in real_labels[id] and 'crosswalk' not in pre_labels:
             wrong_size.append(str(path_f[id]))
+            print("Zly rozmiar")
         elif 'crosswalk' not in predict_labels and 'crosswalk' in real_labels[id] and 'crosswalk' not in pre_labels:
             FN += 1
             in_corr.append(str(path_f[id]))
+            print("Niepoprawnie wykryte")
         elif 'crosswalk' in pre_labels and 'crosswalk' not in real_labels[id]:
             FN += 1
             in_corr.append(str(path_f[id]))
+            print("Niepoprawnie wykryte")
 
     if TP + FN != 0:
         Precision = TP / (TP + FN)
@@ -226,12 +238,14 @@ def main():
     # print("Trenowanie")
     # train_model(labels,dataset)
 
+
+    dataset_test = Dataset(test_ann_path, test_img_path)
     # Wczytanie wyuczonego modelu
     model = core.Model.load('sings_rmodel.pth', labels)
 
     liczba_obrazow, test_path, test_filename, test_labels = load(test_ann_path, test_img_path)
     print("Testowanie: ")
-    score = test_and_evaluate(liczba_obrazow, test_path, test_filename, test_labels, model)
+    score = test_and_evaluate(liczba_obrazow, test_path, test_filename, test_labels, model, dataset_test)
     print("Precision = ", score)
     return
 if __name__ == '__main__':
