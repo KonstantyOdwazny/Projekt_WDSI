@@ -27,11 +27,11 @@ def load(ann_path,img_path):
         ilosc_obrazow = ilosc_obrazow + 1
         root = ET.parse(a_path).getroot()
         # Odczytywanie sciezki do zdjecia
-        path_f = Path(str(img_path) + '/' + root.find("./filename").text)
+        path_f = Path(str(img_path) + root.find("./filename").text)
         data_path.append(path_f)
         # Odczyt nazwy zdjecia
         filename = root.find("./filename").text
-        data_filename.append(filename)
+        data_filename.append(str(filename))
         #Odnajdywanie wszystkich etykiet klas dla danego obrazka
         labels = []
         for cl in root.findall("./object/name"):
@@ -50,9 +50,15 @@ def train_model(labels,dataset):
     return
 
 def display(paths, boxes, labels):
+    """
+    Wyswietla pojedynczy obraz wraz z ramka oraz predykowana etykieta
+    """
     image = read_image(paths)
     show_labeled_image(image, boxes, labels)
 def get_file_list(root, file_type):
+    """
+    Funkcja pobiera typ pliku w tym przypadku xml oraz odsylacz do niego root i zwraca xml w formie listy
+    """
     return [os.path.join(directory_path, f) for directory_path, directory_name,
             files in os.walk(root) for f in files if f.endswith(file_type)]
 def image_stats(filename, i, xmin, xmax, ymin, ymax):
@@ -72,14 +78,68 @@ def image_stats(filename, i, xmin, xmax, ymin, ymax):
         print("xmin:", xmin[x], "xmax:", xmax[x], "ymin:", ymin[x], "ymax:", ymax[x])
 
     return
-def test(ilosc, path_f, filename, real_labels, model):
+def draw_grid(images, row, col, h, w):
     """
-    Testowanie modelu
+    Funkcja ktora tworzy ramki dla wyswietlania obrazow
+    Zwraca tablice wszystkich 24 obrazow dla przyjetej listy obrazow image
+    """
+    h_size = int(h / row)
+    w_size = int(w / col)
+    image_all = np.zeros((h, w, 4), dtype=np.uint8)
+    r = 0
+    c = 0
+    if len(images) <= 24:
+        n = len(images)
+    else:
+        n = 24
+    for cur_image in range(n):
+        if c < col and r < row:
+            img = cv2.imread(images[cur_image], cv2.IMREAD_UNCHANGED)
+            image_resized = cv2.resize(img, (w_size, h_size))
+            image_all[r * h_size: (r + 1) * h_size, c * w_size: (c + 1) * w_size, :] = image_resized
+            r += 1
+        else:
+            if r >= row:
+                r = 0
+                c += 1
+
+    return image_all
+def display_images(corr, incorr, za_male):
+    """
+    Funkcja ktora wysiwetla ramki z obrazami dla obrazow:
+    corr - poprawnie wykrytych
+    incorr - niepoprawnie wykrytych
+    za_male - poprawnie wykrytych ale odrzucone przez zbyt maly rozmiar znaku
+    """
+
+    image_corr = draw_grid(corr, 8, 3, 800, 600)
+    image_incorr = draw_grid(incorr, 8, 3, 800, 600)
+    image_za_male = draw_grid(za_male, 8, 3, 800, 600)
+
+    cv2.imshow('images correct', image_corr)
+    cv2.imshow('images incorrect', image_incorr)
+    cv2.imshow('Za male', image_za_male)
+    cv2.waitKey()
+
+    return
+
+def test_and_evaluate(ilosc, path_f, filename, real_labels, model):
+    """
+    :param ilosc: stała wartość int oznacza ilość obrazów
+    :param path_f: wektor ścieżek do obrazów
+    :param filename: wektor z nazwami obrazów
+    :param real_labels: etykiety prawdziwe dla zbioru testowego ( znane ale nie biora udziału w predykcji),
+    służą do ewaluacji
+    :param model: Wyuczony model
+    :return: Precision - precyzje ewaluacji (predykcji obiektow)
+    Funkcja służy do testowania i ewaluacji błędu predykcji dla danego modelu
     """
     # ann_path_list = get_file_list(ann_path, '.xml')  #otwarcie listy plikow xml
-    TP = 0 #Liczba prawdziwie pozytywnych zdjec
-    FN = 0 #Liczba falszywie pozytywnych zdjec
-    corr = [] #Lista wykrytych zdjec
+    TP = 0      #Liczba prawdziwie pozytywnych zdjec
+    FN = 0      #Liczba falszywie pozytywnych zdjec
+    corr = []   #Lista wykrytych zdjec
+    in_corr = []    #Lista niepoprawnie wykrytych obrazow
+    wrong_size = [] #Lista obrazow poprawnie wykrytych ale o zlym rozmiarze
 
     Precision = 0
     for id in range(ilosc):
@@ -92,9 +152,7 @@ def test(ilosc, path_f, filename, real_labels, model):
         # #Wydobywanie wielkosci danego obrazu nie korzystajac z plikow xml
         size_image = PIL.Image.open(str(path_f[id]))
         width, height = size_image.size
-        """
-        Predykcja
-        """
+
         predict_labels = []
         boxes = []
         scores = []
@@ -115,37 +173,34 @@ def test(ilosc, path_f, filename, real_labels, model):
                     ymin_list.append(int(ramki[j][1]))
                     ymax_list.append(int(ramki[j][3]))
 
-        # print("Filename:", filename[id])
-        # print("n:", i)
-        # for x in range(len(ymax_list)):
-        #     print("xmin:", xmin_list[x], "xmax:", xmax_list[x], "ymin:", ymin_list[x], "ymax:", ymax_list[x])
         image_stats(filename[id], i, xmin_list, xmax_list, ymin_list, ymax_list)
 
-        """ Ewaluacja oraz wyswietlanie poprawnie sklasyfikowanych obrazow """
-        score = [] # Wynik prawdopodobienstwa wystepowania znaku z danej klasy
-        indeks = []
+        pre_labels = []
         for s in range(len(scores)):
-            if predict_labels[s] == 'crosswalk':
-                dlugosc_znaku = xmax_list[s] - xmin_list[s]
-                wysokosc_znaku = ymax_list[s] - ymin_list[s]
-                if dlugosc_znaku/width >= 0.1 and wysokosc_znaku/height >= 0.1:
-                    score.append(scores[s])
-                    indeks.append(s)
+            dlugosc_znaku = xmax_list[s] - xmin_list[s]
+            wysokosc_znaku = ymax_list[s] - ymin_list[s]
+            if dlugosc_znaku / width >= 0.1 and wysokosc_znaku / height >= 0.1:
+                pre_labels.append(predict_labels[s])
 
+        if 'crosswalk' in pre_labels and 'crosswalk' in real_labels[id]:
+            TP += 1
+            # display(str(path_f[id]), boxes[s], predict_labels[s]) # wyswietlanie poprawnych zdjec
+            corr.append(str(path_f[id]))
+        elif 'crosswalk' in predict_labels and 'crosswalk' in real_labels[id] and 'crosswalk' not in pre_labels:
+            wrong_size.append(str(path_f[id]))
+        elif 'crosswalk' not in predict_labels and 'crosswalk' in real_labels[id] and 'crosswalk' not in pre_labels:
+            FN += 1
+            in_corr.append(str(path_f[id]))
+        elif 'crosswalk' in pre_labels and 'crosswalk' not in real_labels[id]:
+            FN += 1
+            in_corr.append(str(path_f[id]))
 
-        pom_tp = TP
-        if indeks is not None:
-            for j in range(len(indeks)):
-                for z in range(len(real_labels[id])):
-                    if real_labels[id][z] == predict_labels[indeks[j]]:
-                        TP = TP + 1
-                        display(str(path_f[id]),boxes[indeks[j]],predict_labels[indeks[j]]) # wyswietlanie poprawnych zdjec
-                        corr.append(filename[id])
-                if pom_tp == TP:
-                    FN = FN + 1
+    if TP + FN != 0:
+        Precision = TP / (TP + FN)
 
-    Precision = TP/(TP + FN)
     print("Lista wykrytych zdjec:", corr)
+    print("Wykryte zdjecia:")
+    display_images(corr, in_corr, wrong_size)
     return Precision
 
 def main():
@@ -175,8 +230,9 @@ def main():
     model = core.Model.load('sings_rmodel.pth', labels)
 
     liczba_obrazow, test_path, test_filename, test_labels = load(test_ann_path, test_img_path)
-    score = test(liczba_obrazow, test_path, test_filename, test_labels, model)
-    print("Score = ", score)
+    print("Testowanie: ")
+    score = test_and_evaluate(liczba_obrazow, test_path, test_filename, test_labels, model)
+    print("Precision = ", score)
     return
 if __name__ == '__main__':
     main()
