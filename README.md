@@ -1,7 +1,6 @@
 # Projekt_WDSI
- Projekt zaliczeniowy z przedmiotu Wprowadzenie do Sztucznej Inteligencji
- Założeniem Projektu było rozpoznawanie znaków przejścia dla pieszych, które zajmują co najmniej 1/10 szerokości i wysokości zdjęcia 
- Kroki podejmowane podczas wykonania zadania:
+ ##### Założeniem Projektu było rozpoznawanie znaków przejścia dla pieszych, które zajmują co najmniej 1/10 szerokości i wysokości zdjęcia 
+ ##### Kroki podejmowane podczas wykonania zadania:
  1. Podzieliłem zbiór danych na testowy oraz treningowy i stworzyłem foldery train i test oraz pod foldery dla obu: annotations i images.
  2. Wytrenowałem sieć za pomocą biblioteki detecto(https://detecto.readthedocs.io/en/latest/). Sieć trenowałem przy użyciu Google Colab gdyż tam można użyć zasobów GPU,
  podczas gdy w Pycharmie nie, co znacznie spowalniało uczenie się modelu. (W Google Colab zajeło około 20 min przy zbiorze uczącym mającym 518 zdjęć) Link do Google Colab:
