@@ -88,10 +88,10 @@ def draw_grid(images, row, col, h, w):
     image_all = np.zeros((h, w, 4), dtype=np.uint8)
     r = 0
     c = 0
-    if len(images) <= 24:
+    if len(images) <= 32:
         n = len(images)
     else:
-        n = 16
+        n = 32
     for cur_image in range(n):
         if c < col and r < row:
             img = cv2.imread(images[cur_image], cv2.IMREAD_UNCHANGED)
@@ -166,7 +166,7 @@ def test_and_evaluate(ilosc, path_f, filename, real_labels, model, dataset):
         # print("scores", wyniki)
         for j in range(len(klasy)):
             if klasy is not None and ramki is not None and wyniki is not None:
-                if wyniki[j] >= 0.8:
+                if wyniki[j] >= 0.65:
                     predict_labels.append(klasy[j])
                     indeks.append(i)
                     scores.append(wyniki[j])
@@ -192,25 +192,26 @@ def test_and_evaluate(ilosc, path_f, filename, real_labels, model, dataset):
 
         if 'crosswalk' in pre_labels and 'crosswalk' in real_labels[id]:
             TP += 1
-            print("Poprawnie wykryte")
-            display(dataset[id]) # wyswietlanie poprawnych zdjec
+            # print("Poprawnie wykryte")
+            # display(dataset[id]) # wyswietlanie poprawnych zdjec
             corr.append(str(path_f[id]))
         elif 'crosswalk' in predict_labels and 'crosswalk' in real_labels[id] and 'crosswalk' not in pre_labels:
             wrong_size.append(str(path_f[id]))
-            print("Zly rozmiar")
+            # print("Zly rozmiar")
         elif 'crosswalk' not in predict_labels and 'crosswalk' in real_labels[id] and 'crosswalk' not in pre_labels:
             FN += 1
             in_corr.append(str(path_f[id]))
-            print("Niepoprawnie wykryte")
+            # print("Niepoprawnie wykryte")
         elif 'crosswalk' in pre_labels and 'crosswalk' not in real_labels[id]:
             FN += 1
             in_corr.append(str(path_f[id]))
-            print("Niepoprawnie wykryte")
+            # print("Niepoprawnie wykryte")
 
     if TP + FN != 0:
         Precision = TP / (TP + FN)
 
     print("Lista wykrytych zdjec:", corr)
+    print("Ilosc wykrytych zdjec:", len(corr))
     print("Wykryte zdjecia:")
     display_images(corr, in_corr, wrong_size)
     return Precision
